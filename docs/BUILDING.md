@@ -101,7 +101,7 @@ python3 web/serve.py --directory build-wasm 8080
 
 Open `http://127.0.0.1:8080/`. WASD moves, Space jumps, the mouse looks, Enter pauses. Drop a folder to stream meshes one file at a time. Saves go to `localStorage`.
 
-Pack the wasm build into 16KB chunks and push `web/cdn`. `web/play.html` then reads those files through the GitHub contents API (`api.github.com`), not from a folder next to the page:
+Pack the wasm build into 16KB chunks and push `web/cdn`. Download `web/play.html` and open that one file. The loader and the game shell are inside it. It reads the chunks through the GitHub contents API (`api.github.com`), not from a folder next to the page:
 
 ```shell
 python3 tools/pack_jsdelivr.py --js build-wasm/lcu.js --wasm build-wasm/lcu.wasm --out web/cdn
