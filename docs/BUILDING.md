@@ -101,13 +101,13 @@ python3 web/serve.py --directory build-wasm 8080
 
 Open `http://127.0.0.1:8080/`. WASD moves, Space jumps, the mouse looks, Enter pauses. Drop a folder to stream meshes one file at a time. Saves go to `localStorage`.
 
-To publish the same build on jsDelivr, pack it into 16KB chunks and push `web/dist`:
+Pack the wasm build into 16KB chunks and push `web/cdn`. `web/play.html` then reads those files through the GitHub contents API (`api.github.com`), not from a folder next to the page:
 
 ```shell
 python3 tools/pack_jsdelivr.py --js build-wasm/lcu.js --wasm build-wasm/lcu.wasm --out web/cdn
 ```
 
-`web/play.html` then loads `lcu-chunks.json`, the runtime chunks, and the wasm chunks from whatever host served the page (jsDelivr included). Add `?cdn=1` to force `https://cdn.jsdelivr.net/gh/bitball41/Lego-City-Undercover-Decomp-WEBPORTilation@cursor/web-port-runtime-c6b2/web/cdn/`. `?ref=` and `?repo=` override that pin. `?dist=` is a full base URL.
+Open `web/play.html`. `?repo=` and `?ref=` pick a different GitHub repo or branch. `?dist=` is only for a local base URL.
 
 ## 4. Decompilers
 

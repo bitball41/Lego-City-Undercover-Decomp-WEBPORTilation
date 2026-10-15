@@ -46,7 +46,7 @@
 <body>
 <main>
   <h1>LEGO CITY UNDERCOVER</h1>
-  <p>This page pulls the runtime and wasm from jsDelivr in chunks, then boots. WASD moves, Shift sprints, Space jumps, mouse looks, Enter pauses. Drop your own <code>.ghg</code>, <code>.gsc</code>, or <code>.obj</code> files. No game assets are hosted here.</p>
+  <p>This page pulls the runtime and wasm straight from the GitHub repo, one chunk at a time, then boots. WASD moves, Shift sprints, Space jumps, mouse looks, Enter pauses. Drop your own <code>.ghg</code>, <code>.gsc</code>, or <code>.obj</code> files. No game assets are hosted here.</p>
   <div id="loadbar"><div id="loadfill"></div></div>
   <div id="loadlabel">waiting</div>
   <canvas id="screen" width="480" height="270"></canvas>
@@ -61,12 +61,11 @@
 <script src="shell.js"></script>
 <script>
   const query = new URLSearchParams(location.search);
-  const base = query.get("dist")
-    ? query.get("dist")
-    : (query.has("cdn")
-        ? LcuLoader.jsDelivrDist(query.get("repo"), query.get("ref"))
-        : LcuLoader.defaultBase());
-  LcuLoader.boot({ base: base }).then(function (module) {
+  LcuLoader.boot({
+    repo: query.get("repo") || undefined,
+    ref: query.get("ref") || undefined,
+    base: query.get("dist") || undefined
+  }).then(function (module) {
     LcuShell.start(module);
   }).catch(function (err) {
     document.getElementById("status").textContent = "load failed";

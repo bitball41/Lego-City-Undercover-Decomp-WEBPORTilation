@@ -1,21 +1,11 @@
 (function () {
   const DEFAULT_REPO = "bitball41/Lego-City-Undercover-Decomp-WEBPORTilation";
   const DEFAULT_REF = "cursor/web-port-runtime-c6b2";
-  const loaderSrc = document.currentScript && document.currentScript.src;
 
-  function jsDelivrDist(repo, ref) {
-    return "https://cdn.jsdelivr.net/gh/" + (repo || DEFAULT_REPO) + "@" + (ref || DEFAULT_REF) + "/web/cdn/";
-  }
-
-  function defaultBase() {
-    const query = new URLSearchParams(location.search);
-    if (query.get("dist")) {
-      return query.get("dist").replace(/\/?$/, "/");
-    }
-    if (loaderSrc) {
-      return new URL("cdn/", loaderSrc).href;
-    }
-    return new URL("cdn/", location.href).href;
+  function githubFileUrl(repo, ref, file) {
+    const params = new URLSearchParams();
+    params.set("ref", ref || DEFAULT_REF);
+    return "https://api.github.com/repos/" + (repo || DEFAULT_REPO) + "/contents/web/cdn/" + file + "?" + params.toString();
   }
 
   function setLabel(text) {
@@ -34,22 +24,37 @@
     return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
-  async function fetchChunk(url) {
-    const response = await fetch(url, { cache: "force-cache" });
-    if (!response.ok) {
-      throw new Error(response.status + " " + url);
-    }
-    return new Uint8Array(await response.arrayBuffer());
+  function decodeBase64(text) {
+    const binary = atob(text.replace(/\s/g, ""));
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
+    return out;
   }
 
-  async function loadPart(part, base, onBytes) {
+  async function fetchBytes(file, opts) {
+    if (opts.base) {
+      const response = await fetch(opts.base + file);
+      if (!response.ok) throw new Error(response.status + " " + opts.base + file);
+      return new Uint8Array(await response.arrayBuffer());
+    }
+    const url = githubFileUrl(opts.repo, opts.ref, file);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(response.status + " " + url);
+    const payload = await response.json();
+    if (payload.encoding !== "base64" || !payload.content) {
+      throw new Error(payload.message || "GitHub returned no file content for " + file);
+    }
+    return decodeBase64(payload.content);
+  }
+
+  async function loadPart(part, opts, onBytes) {
     const pieces = new Array(part.chunks.length);
     let cursor = 0;
     async function worker() {
       while (cursor < part.chunks.length) {
         const index = cursor;
         cursor += 1;
-        const bytes = await fetchChunk(base + part.chunks[index]);
+        const bytes = await fetchBytes(part.chunks[index], opts);
         pieces[index] = bytes;
         onBytes(bytes.length, part.name, index, part.chunks.length);
       }
@@ -99,20 +104,17 @@
 
   async function boot(options) {
     const opts = options || {};
-    const base = (opts.base || defaultBase()).replace(/\/?$/, "/");
-    setLabel("manifest");
+    if (opts.base) opts.base = opts.base.replace(/\/?$/, "/");
+    setLabel(opts.base ? "manifest" : "github manifest");
     setFill(0);
-    const manifestResponse = await fetch(base + "lcu-chunks.json", { cache: "no-cache" });
-    if (!manifestResponse.ok) {
-      throw new Error("manifest " + manifestResponse.status + " " + base + "lcu-chunks.json");
-    }
-    const manifest = await manifestResponse.json();
+    const manifestBytes = await fetchBytes("lcu-chunks.json", opts);
+    const manifest = JSON.parse(new TextDecoder().decode(manifestBytes));
     const parts = manifest.parts || [];
     const total = parts.reduce((sum, part) => sum + part.size, 0);
     let got = 0;
     const loaded = {};
     await Promise.all(parts.map(async (part) => {
-      loaded[part.name] = await loadPart(part, base, (n, name, index, count) => {
+      loaded[part.name] = await loadPart(part, opts, (n, name, index, count) => {
         got += n;
         setFill(total ? got / total : 1);
         setLabel(name + " " + (index + 1) + "/" + count + "  " + got + "/" + total);
@@ -141,8 +143,7 @@
 
   window.LcuLoader = {
     boot: boot,
-    defaultBase: defaultBase,
-    jsDelivrDist: jsDelivrDist,
+    githubFileUrl: githubFileUrl,
     repo: DEFAULT_REPO,
     ref: DEFAULT_REF
   };
