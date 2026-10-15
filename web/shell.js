@@ -82,17 +82,29 @@
     let smokeFrames = 0;
     const smoke = new URLSearchParams(location.search).has("smoke");
 
+    function note(message) {
+      if (window.LcuLoader && LcuLoader.log) LcuLoader.log("GAME", message);
+      else if (logEl) logEl.textContent += (logEl.textContent ? "\n" : "") + message;
+    }
+
     function frame(now) {
       const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
       last = now;
-      const pad = samplePad();
-      if (smoke) {
-        module._host_set_pad(0, 0, 1, 0, 0);
-      } else {
-        module._host_set_pad(pad.buttons, pad.lx, pad.ly, pad.rx, pad.ry);
+      try {
+        const pad = samplePad();
+        if (smoke) {
+          module._host_set_pad(0, 0, 1, 0, 0);
+        } else {
+          module._host_set_pad(pad.buttons, pad.lx, pad.ly, pad.rx, pad.ry);
+        }
+        module._host_frame(dt);
+        present();
+      } catch (err) {
+        note("frame failed " + (err && err.stack ? err.stack : err));
+        if (statusEl) statusEl.textContent = "frame failed";
+        document.title = "LCU_FAIL";
+        return;
       }
-      module._host_frame(dt);
-      present();
       const text = module.UTF8ToString(module._host_get_status());
       statusEl.textContent = text + "  studs " + module._host_stud_count();
       if (smoke) {
@@ -118,10 +130,10 @@
         ok += module._host_submit_asset(np, bp, bytes.length);
         module._free(np);
         module._free(bp);
-        logEl.textContent = "streamed " + file.name + " (" + bytes.length + " bytes)";
+        note("asset " + file.name + " " + bytes.length + "B accepted " + ok);
         await new Promise((resolve) => requestAnimationFrame(resolve));
       }
-      logEl.textContent += "\nmeshes accepted " + ok;
+      note("assets finished accepted " + ok);
     }
 
     const folder = document.getElementById("folder");
@@ -139,16 +151,29 @@
     module.stringToUTF8(lang, lp, langLen);
     module._host_set_language(lp);
     module._free(lp);
-    module._host_boot();
+    try {
+      module._host_boot();
+      note("host_boot ok " + module._host_fb_width() + "x" + module._host_fb_height() + " status " + module.UTF8ToString(module._host_get_status()));
+    } catch (err) {
+      note("host_boot failed " + (err && err.stack ? err.stack : err));
+      if (statusEl) statusEl.textContent = "boot failed";
+      document.title = "LCU_FAIL";
+      return;
+    }
     requestAnimationFrame(frame);
   }
 
   function start(modulePromise) {
     Promise.resolve(modulePromise).then(attach).catch((err) => {
       const statusEl = document.getElementById("status");
-      const logEl = document.getElementById("log");
+      const detail = err && err.stack ? err.stack : String(err);
+      if (window.LcuLoader && LcuLoader.log) LcuLoader.log("FAIL", "shell start " + detail);
+      else {
+        const logEl = document.getElementById("log");
+        if (logEl) logEl.textContent = detail;
+      }
       if (statusEl) statusEl.textContent = "boot failed";
-      if (logEl) logEl.textContent = String(err && err.stack ? err.stack : err);
+      document.title = "LCU_FAIL";
     });
   }
 

@@ -33,7 +33,16 @@
       cursor: pointer;
     }
     #status, #loadlabel { font-variant-numeric: tabular-nums; }
-    #log { white-space: pre-wrap; color: #9aa4b5; font-size: 13px; }
+    #log {
+      white-space: pre-wrap;
+      color: #c5d0c0;
+      background: #0c0f14;
+      border: 1px solid #2c3442;
+      font: 12px/1.45 ui-monospace, monospace;
+      max-height: 280px;
+      overflow: auto;
+      padding: 8px;
+    }
     #loadbar {
       width: min(100%, 960px);
       height: 10px;
@@ -53,6 +62,7 @@
   <div class="row">
     <label class="file">Stream a folder<input id="folder" type="file" webkitdirectory multiple hidden /></label>
     <button id="clear" type="button">Clear props</button>
+    <button id="copylog" type="button">Copy log</button>
     <span id="status">loading</span>
   </div>
   <div id="log"></div>
@@ -61,6 +71,14 @@
 <script src="shell.js"></script>
 <script>
   const query = new URLSearchParams(location.search);
+  document.getElementById("copylog").addEventListener("click", function () {
+    const text = (LcuLoader.lines || []).join("\n");
+    navigator.clipboard.writeText(text).then(function () {
+      LcuLoader.log("OK", "log copied " + LcuLoader.lines.length + " lines");
+    }).catch(function (err) {
+      LcuLoader.log("FAIL", "copy failed " + err);
+    });
+  });
   LcuLoader.boot({
     repo: query.get("repo") || undefined,
     ref: query.get("ref") || undefined,
@@ -69,7 +87,7 @@
     LcuShell.start(module);
   }).catch(function (err) {
     document.getElementById("status").textContent = "load failed";
-    document.getElementById("log").textContent = String(err && err.stack ? err.stack : err);
+    LcuLoader.log("FAIL", err && err.stack ? err.stack : String(err));
     if (query.has("smoke")) document.title = "LCU_FAIL";
   });
 </script>
