@@ -23,7 +23,7 @@ bool IsInterceptedPS(unsigned int port);
 int GetTypePS(unsigned int port);
 int GetAttachmentTypePS(unsigned int port);
 int GetCapsPS(unsigned int port);
-void ReadButtonsPS(unsigned int port, float* buttons);
+void ReadButtonsPS(unsigned int port, unsigned int* buttons);
 float GetStickDeadZone(unsigned int port);
 float GetButtonDeadZone(unsigned int port);
 void ReadAnalogValuesPS(unsigned int port, float* analogValues);

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LEGO City Undercover</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #12151c;
+      color: #f2efe6;
+      font: 16px/1.4 "Trebuchet MS", sans-serif;
+    }
+    main { max-width: 1040px; margin: 0 auto; padding: 20px; }
+    h1 { margin: 0 0 6px; letter-spacing: 0.04em; }
+    p { color: #c8c2b4; }
+    canvas {
+      width: min(100%, 960px);
+      height: auto;
+      background: #000;
+      image-rendering: auto;
+      border: 4px solid #e8b423;
+      display: block;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
+    button, label.file {
+      background: #e8b423;
+      color: #1b1404;
+      border: 0;
+      padding: 8px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #status { font-variant-numeric: tabular-nums; }
+    #log { white-space: pre-wrap; color: #9aa4b5; font-size: 13px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>LEGO CITY UNDERCOVER</h1>
+  <p>Browser host for the Switch decomp. WASD moves, Shift sprints, Space jumps, mouse looks, Enter pauses. Open a folder from a game you own: <code>.dat</code>, <code>.pak</code>, <code>.ghg</code>, <code>.gsc</code>. Big archives are indexed in the page and only the scene files are sent across. This page does not ship the campaign, the city, or any game assets.</p>
+  <canvas id="screen" width="480" height="270"></canvas>
+  <div class="row">
+    <label class="file">Open dump folder<input id="folder" type="file" webkitdirectory multiple hidden /></label>
+    <button id="clear" type="button">Clear meshes</button>
+    <span id="status">booting</span>
+  </div>
+  <div id="log"></div>
+</main>
+<script src="lcu.js"></script>
+<script src="archive.js"></script>
+<script src="shell.js"></script>
+<script>
+  LcuShell.start(createLcuModule());
+</script>
+</body>
+</html>

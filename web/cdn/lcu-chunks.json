@@ -1,0 +1,37 @@
+{
+  "chunkBytes": 16384,
+  "parts": [
+    {
+      "name": "runtime",
+      "size": 64471,
+      "sha256": "38bc75990f0338bb53aafaeaf2b0c257413a14b3ae3fce5a7fea20f5d20dfafc",
+      "chunks": [
+        "chunks/runtime-000.bin",
+        "chunks/runtime-001.bin",
+        "chunks/runtime-002.bin",
+        "chunks/runtime-003.bin"
+      ]
+    },
+    {
+      "name": "wasm",
+      "size": 218420,
+      "sha256": "78063656a1f3f386febe16e4c86a2eeddd6c8f9cf60d0014195b9f453f0ea7f9",
+      "chunks": [
+        "chunks/wasm-000.bin",
+        "chunks/wasm-001.bin",
+        "chunks/wasm-002.bin",
+        "chunks/wasm-003.bin",
+        "chunks/wasm-004.bin",
+        "chunks/wasm-005.bin",
+        "chunks/wasm-006.bin",
+        "chunks/wasm-007.bin",
+        "chunks/wasm-008.bin",
+        "chunks/wasm-009.bin",
+        "chunks/wasm-010.bin",
+        "chunks/wasm-011.bin",
+        "chunks/wasm-012.bin",
+        "chunks/wasm-013.bin"
+      ]
+    }
+  ]
+}
