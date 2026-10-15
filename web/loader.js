@@ -4,7 +4,7 @@
   const loaderSrc = document.currentScript && document.currentScript.src;
 
   function jsDelivrDist(repo, ref) {
-    return "https://cdn.jsdelivr.net/gh/" + (repo || DEFAULT_REPO) + "@" + (ref || DEFAULT_REF) + "/web/dist/";
+    return "https://cdn.jsdelivr.net/gh/" + (repo || DEFAULT_REPO) + "@" + (ref || DEFAULT_REF) + "/web/cdn/";
   }
 
   function defaultBase() {
@@ -13,9 +13,9 @@
       return query.get("dist").replace(/\/?$/, "/");
     }
     if (loaderSrc) {
-      return new URL("dist/", loaderSrc).href;
+      return new URL("cdn/", loaderSrc).href;
     }
-    return new URL("dist/", location.href).href;
+    return new URL("cdn/", location.href).href;
   }
 
   function setLabel(text) {
@@ -102,9 +102,9 @@
     const base = (opts.base || defaultBase()).replace(/\/?$/, "/");
     setLabel("manifest");
     setFill(0);
-    const manifestResponse = await fetch(base + "manifest.json", { cache: "no-cache" });
+    const manifestResponse = await fetch(base + "lcu-chunks.json", { cache: "no-cache" });
     if (!manifestResponse.ok) {
-      throw new Error("manifest " + manifestResponse.status + " " + base + "manifest.json");
+      throw new Error("manifest " + manifestResponse.status + " " + base + "lcu-chunks.json");
     }
     const manifest = await manifestResponse.json();
     const parts = manifest.parts || [];

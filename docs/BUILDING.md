@@ -104,10 +104,10 @@ Open `http://127.0.0.1:8080/`. WASD moves, Space jumps, the mouse looks, Enter p
 To publish the same build on jsDelivr, pack it into 16KB chunks and push `web/dist`:
 
 ```shell
-python3 tools/pack_jsdelivr.py --js build-wasm/lcu.js --wasm build-wasm/lcu.wasm --out web/dist
+python3 tools/pack_jsdelivr.py --js build-wasm/lcu.js --wasm build-wasm/lcu.wasm --out web/cdn
 ```
 
-`web/play.html` then loads `manifest.json`, the runtime chunks, and the wasm chunks from whatever host served the page (jsDelivr included). Add `?cdn=1` to force `https://cdn.jsdelivr.net/gh/bitball41/Lego-City-Undercover-Decomp-WEBPORTilation@cursor/web-port-runtime-c6b2/web/dist/`. `?ref=` and `?repo=` override that pin. `?dist=` is a full base URL.
+`web/play.html` then loads `lcu-chunks.json`, the runtime chunks, and the wasm chunks from whatever host served the page (jsDelivr included). Add `?cdn=1` to force `https://cdn.jsdelivr.net/gh/bitball41/Lego-City-Undercover-Decomp-WEBPORTilation@cursor/web-port-runtime-c6b2/web/cdn/`. `?ref=` and `?repo=` override that pin. `?dist=` is a full base URL.
 
 ## 4. Decompilers
 

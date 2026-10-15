@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Split the wasm build into jsDelivr-sized chunks and write web/dist/manifest.json."""
+"""Split the wasm build into jsDelivr-sized chunks and write web/cdn/lcu-chunks.json."""
 
 import argparse
 import hashlib
@@ -47,7 +47,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--js", required=True)
     parser.add_argument("--wasm", required=True)
-    parser.add_argument("--out", default="web/dist")
+    parser.add_argument("--out", default="web/cdn")
     args = parser.parse_args()
     out_dir = Path(args.out)
     if out_dir.exists():
@@ -62,7 +62,7 @@ def main():
             part("wasm", wasm, "wasm", out_dir),
         ],
     }
-    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (out_dir / "lcu-chunks.json").write_text(json.dumps(manifest, indent=2) + "\n")
     reassemble(manifest, out_dir)
     chunks = sum(len(item["chunks"]) for item in manifest["parts"])
     print(f"packed {chunks} chunks into {out_dir}")
