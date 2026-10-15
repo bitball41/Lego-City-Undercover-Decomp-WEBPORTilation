@@ -76,6 +76,31 @@ To check whether everything built correctly, just run `tools/check` after the bu
 
 You can check the current progress with `python3 tools/common/progress.py`.
 
+## Host and browser builds
+
+The matching Switch build is unchanged unless you set `LCU_PLATFORM`.
+
+Native host (software renderer, no game dump required):
+
+```shell
+cmake -S . -B build-host -DLCU_PLATFORM=host
+cmake --build build-host
+./build-host/lcuswitch --test
+./build-host/lcuswitch --frames 180 --shot /tmp/lcu.ppm
+./build-host/lcuswitch --mount /path/to/your/legally-dumped/assets --frames 240 --shot /tmp/lcu.ppm
+```
+
+Browser build (Emscripten). Point it at a directory of your own `.obj`, `.ghg`, or `.gsc` files. Nothing in this repo is a game asset.
+
+```shell
+source /path/to/emsdk/emsdk_env.sh
+emcmake cmake -S . -B build-wasm -DLCU_PLATFORM=wasm
+cmake --build build-wasm
+python3 web/serve.py --directory build-wasm 8080
+```
+
+Open `http://127.0.0.1:8080/`. WASD moves, Space jumps, the mouse looks, Enter pauses. Drop a folder to stream meshes one file at a time. Saves go to `localStorage`.
+
 ## 4. Decompilers
 
 For instructions on setting up a decompiler, see [DECOMPILERS.md](DECOMPILERS.md).
