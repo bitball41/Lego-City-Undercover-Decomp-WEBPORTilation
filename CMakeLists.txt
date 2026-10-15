@@ -94,6 +94,9 @@ if(NOT LCU_PLATFORM STREQUAL "switch")
         add_custom_command(TARGET lcuswitch POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${CMAKE_CURRENT_SOURCE_DIR}/web/index.html
+                ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.js
+                ${CMAKE_CURRENT_SOURCE_DIR}/web/loader.js
+                ${CMAKE_CURRENT_SOURCE_DIR}/web/play.html
                 ${CMAKE_CURRENT_SOURCE_DIR}/web/serve.py
                 $<TARGET_FILE_DIR:lcuswitch>)
     endif()
