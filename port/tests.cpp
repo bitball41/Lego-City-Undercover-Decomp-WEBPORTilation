@@ -4,6 +4,8 @@
 #include "draw.h"
 #include "host_pad.h"
 #include "host_state.h"
+#include "lz2k.h"
+#include "tt_read.h"
 #include "kestrel/NuMemory.h"
 #include "legoapi/optionssave.h"
 #include "legoapi/players.h"
@@ -23,6 +25,8 @@
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <vector>
+#include <zlib.h>
 
 int ReadNextNumber(const char*& str, int max);
 uint32_t NuStrHashUpperCaseFNV1(const char* str, unsigned int seed);
@@ -128,22 +132,139 @@ int GameRunTests() {
     const char* obj = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
     Expect(AssetsSubmit("tri.obj", reinterpret_cast<const uint8_t*>(obj), static_cast<int>(std::strlen(obj))) == 1,
            "obj mesh");
-    unsigned char ghg[8 + 12 + 36 + 12];
-    std::memset(ghg, 0, sizeof(ghg));
-    ghg[0] = 'H';
-    ghg[1] = 'S';
-    ghg[2] = 'E';
-    ghg[3] = 'M';
-    uint32_t version = 1, verts = 3, indices = 3;
-    std::memcpy(ghg + 8, &version, 4);
-    std::memcpy(ghg + 12, &verts, 4);
-    std::memcpy(ghg + 16, &indices, 4);
-    float positions[9] = {0, 0, 0, 1, 0, 0, 0, 1, 0};
-    std::memcpy(ghg + 20, positions, sizeof(positions));
-    uint32_t indexList[3] = {0, 1, 2};
-    std::memcpy(ghg + 56, indexList, sizeof(indexList));
-    Expect(AssetsSubmit("crate.ghg", ghg, static_cast<int>(sizeof(ghg))) == 1, "ghg mesh");
+    auto be32 = [](std::vector<uint8_t>& out, uint32_t v) {
+        out.push_back(static_cast<uint8_t>(v >> 24));
+        out.push_back(static_cast<uint8_t>(v >> 16));
+        out.push_back(static_cast<uint8_t>(v >> 8));
+        out.push_back(static_cast<uint8_t>(v));
+    };
+    auto be16 = [](std::vector<uint8_t>& out, uint16_t v) {
+        out.push_back(static_cast<uint8_t>(v >> 8));
+        out.push_back(static_cast<uint8_t>(v));
+    };
+    auto bef = [&](std::vector<uint8_t>& out, float f) {
+        uint32_t u = 0;
+        std::memcpy(&u, &f, 4);
+        be32(out, u);
+    };
+    auto le32 = [](std::vector<uint8_t>& out, uint32_t v) {
+        out.push_back(static_cast<uint8_t>(v));
+        out.push_back(static_cast<uint8_t>(v >> 8));
+        out.push_back(static_cast<uint8_t>(v >> 16));
+        out.push_back(static_cast<uint8_t>(v >> 24));
+    };
+    auto le16 = [](std::vector<uint8_t>& out, uint16_t v) {
+        out.push_back(static_cast<uint8_t>(v));
+        out.push_back(static_cast<uint8_t>(v >> 8));
+    };
+    std::vector<uint8_t> nu20;
+    nu20.push_back('0');
+    nu20.push_back('2');
+    nu20.push_back('U');
+    nu20.push_back('N');
+    be32(nu20, 0x0a);
+    nu20.push_back('H');
+    nu20.push_back('S');
+    nu20.push_back('E');
+    nu20.push_back('M');
+    be32(nu20, 4);
+    be32(nu20, 1);
+    be32(nu20, 1);
+    nu20.insert(nu20.end(), 8, 0);
+    be32(nu20, 3);
+    nu20.push_back(3);
+    nu20.insert(nu20.end(), 31, 0);
+    bef(nu20, 0.f);
+    bef(nu20, 0.f);
+    bef(nu20, 0.f);
+    bef(nu20, 1.f);
+    bef(nu20, 0.f);
+    bef(nu20, 0.f);
+    bef(nu20, 0.f);
+    bef(nu20, 1.f);
+    bef(nu20, 0.f);
+    nu20.insert(nu20.end(), 4, 0);
+    nu20.insert(nu20.end(), 4, 0);
+    nu20.insert(nu20.end(), 8, 0);
+    be32(nu20, 3);
+    nu20.insert(nu20.end(), 4, 0);
+    be16(nu20, 4);
+    be16(nu20, 5);
+    be16(nu20, 6);
+    be32(nu20, 0);
+    be32(nu20, 3);
+    be32(nu20, 0);
+    be16(nu20, 0);
+    be32(nu20, 3);
+    nu20.insert(nu20.end(), 4, 0);
+    be32(nu20, 0);
+    nu20.insert(nu20.end(), 4, 0);
+    be32(nu20, 0);
+    nu20.insert(nu20.end(), 4, 0);
+    Expect(AssetsSubmit("crate.ghg", nu20.data(), static_cast<int>(nu20.size())) == 1, "nu20 mesh");
     Expect(AssetsLoaded() == 2, "asset count");
+    const HostMesh* loaded = AssetsAt(1);
+    Expect(loaded != nullptr && loaded->indices.size() == 3, "nu20 triangle");
+
+    std::vector<uint8_t> info;
+    le32(info, static_cast<uint32_t>(-1));
+    le32(info, 1);
+    le32(info, 56);
+    le32(info, static_cast<uint32_t>(nu20.size()));
+    le32(info, static_cast<uint32_t>(nu20.size()));
+    info.insert(info.end(), 4, 0);
+    le32(info, 1);
+    le16(info, 0);
+    le16(info, 0);
+    le32(info, 0);
+    le32(info, 8);
+    const char* inner = "tri.ghg";
+    info.insert(info.end(), inner, inner + 8);
+    Expect(info.size() == 48, "dat directory size");
+    std::vector<uint8_t> dat;
+    le32(dat, 8);
+    le32(dat, static_cast<uint32_t>(info.size()));
+    dat.insert(dat.end(), info.begin(), info.end());
+    dat.insert(dat.end(), nu20.begin(), nu20.end());
+    {
+        std::ofstream sample("/tmp/lcu-sample.dat", std::ios::binary);
+        sample.write(reinterpret_cast<const char*>(dat.data()), static_cast<std::streamsize>(dat.size()));
+    }
+    Expect(AssetsSubmit("GAME.DAT", dat.data(), static_cast<int>(dat.size())) == 1, "dat extract");
+    Expect(AssetsLoaded() == 3, "dat mesh landed");
+
+    std::vector<uint8_t> compressed(nu20.size() + 64);
+    z_stream strm{};
+    deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY);
+    strm.next_in = const_cast<Bytef*>(reinterpret_cast<const Bytef*>(nu20.data()));
+    strm.avail_in = static_cast<uInt>(nu20.size());
+    strm.next_out = compressed.data();
+    strm.avail_out = static_cast<uInt>(compressed.size());
+    int zret = deflate(&strm, Z_FINISH);
+    int zlen = static_cast<int>(compressed.size() - strm.avail_out);
+    deflateEnd(&strm);
+    Expect(zret == Z_STREAM_END && zlen > 0, "deflate nu20");
+    std::vector<uint8_t> dflt;
+    dflt.insert(dflt.end(), {'D', 'F', 'L', 'T'});
+    le32(dflt, static_cast<uint32_t>(zlen));
+    le32(dflt, static_cast<uint32_t>(nu20.size()));
+    dflt.insert(dflt.end(), compressed.begin(), compressed.begin() + zlen);
+    TtFile wrapped;
+    wrapped.offset = 0;
+    wrapped.size = static_cast<uint32_t>(nu20.size());
+    wrapped.zsize = static_cast<uint32_t>(dflt.size());
+    std::vector<uint8_t> inflated;
+    Expect(TtExtract(dflt.data(), static_cast<int>(dflt.size()), wrapped, inflated), "dflt extract");
+    Expect(inflated.size() == nu20.size() && std::memcmp(inflated.data(), nu20.data(), nu20.size()) == 0, "dflt bytes");
+
+    std::vector<uint8_t> stored;
+    stored.insert(stored.end(), {'L', 'Z', '2', 'K'});
+    le32(stored, 4);
+    le32(stored, 4);
+    stored.insert(stored.end(), {'H', 'I', 'Y', 'A'});
+    std::vector<uint8_t> plain;
+    Expect(Lz2kDecompress(stored.data(), static_cast<int>(stored.size()), plain), "lz2k stored");
+    Expect(plain.size() == 4 && std::memcmp(plain.data(), "HIYA", 4) == 0, "lz2k bytes");
     std::string dir = "/tmp/lcu-assets";
     std::string cmd = "mkdir -p " + dir;
     Expect(std::system(cmd.c_str()) == 0, "asset dir");
@@ -154,7 +275,7 @@ int GameRunTests() {
     Expect(AssetsMountDirectory(dir.c_str()) == 1, "mount streams index");
     Expect(AssetsPending() == 1, "queued file");
     AssetsPump();
-    Expect(AssetsPending() == 0 && AssetsLoaded() == 3, "pumped one file");
+    Expect(AssetsPending() == 0 && AssetsLoaded() == 4, "pumped one file");
     AssetsClear();
 
     NuVideoSetBrightness(50, 50);
@@ -189,12 +310,9 @@ int GameRunTests() {
     }
     Expect(GamePlayerY() > 0.35f, "jump");
 
-    GameDebugSetPlayer(2.f, 0.f, 2.f);
     HostSetPad(0, 0, 0.f, 0.f, 0.f, 0.f);
-    int before = GameStuds();
     GameFrame(1.f / 60.f);
-    Expect(GameStuds() == before + 1, "collect stud");
-    Expect(std::strstr(GameStatus(), "STUDS") != nullptr, "status");
+    Expect(std::strstr(GameStatus(), "DROP GAME DUMP") != nullptr, "status asks for dump");
 
     const unsigned char* frame = DrawPixels();
     bool varied = false;
@@ -210,7 +328,7 @@ int GameRunTests() {
     Expect(varied, "frame has a scene");
 
     if (g_fails == 0) {
-        std::printf("ok %d checks\n", 22);
+        std::printf("ok\n");
     } else {
         std::printf("%d failed\n", g_fails);
     }

@@ -40,16 +40,17 @@
 <body>
 <main>
   <h1>LEGO CITY UNDERCOVER</h1>
-  <p>Browser port of the decomp. WASD moves, Shift sprints, Space jumps, mouse looks, Enter pauses. Drop your own dumped <code>.ghg</code>, <code>.gsc</code>, or <code>.obj</code> files and they stream in one at a time. This page does not ship game assets.</p>
+  <p>Browser host for the Switch decomp. WASD moves, Shift sprints, Space jumps, mouse looks, Enter pauses. Open a folder from a game you own: <code>.dat</code>, <code>.pak</code>, <code>.ghg</code>, <code>.gsc</code>. Big archives are indexed in the page and only the scene files are sent across. This page does not ship the campaign, the city, or any game assets.</p>
   <canvas id="screen" width="480" height="270"></canvas>
   <div class="row">
-    <label class="file">Stream a folder<input id="folder" type="file" webkitdirectory multiple hidden /></label>
-    <button id="clear" type="button">Clear props</button>
+    <label class="file">Open dump folder<input id="folder" type="file" webkitdirectory multiple hidden /></label>
+    <button id="clear" type="button">Clear meshes</button>
     <span id="status">booting</span>
   </div>
   <div id="log"></div>
 </main>
 <script src="lcu.js"></script>
+<script src="archive.js"></script>
 <script src="shell.js"></script>
 <script>
   LcuShell.start(createLcuModule());

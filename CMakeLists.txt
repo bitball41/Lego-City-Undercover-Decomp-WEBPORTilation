@@ -75,6 +75,13 @@ if(NOT LCU_PLATFORM STREQUAL "switch")
     target_include_directories(lcuswitch BEFORE PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/platform/host/include
         ${CMAKE_CURRENT_SOURCE_DIR}/port/include)
+    if(LCU_PLATFORM STREQUAL "wasm")
+        target_compile_options(lcuswitch PRIVATE "SHELL:-sUSE_ZLIB=1")
+        target_link_options(lcuswitch PRIVATE "SHELL:-sUSE_ZLIB=1")
+    else()
+        find_package(ZLIB REQUIRED)
+        target_link_libraries(lcuswitch PRIVATE ZLIB::ZLIB)
+    endif()
     file(GLOB_RECURSE LCU_HOST_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/port/*.cpp)
     target_sources(lcuswitch PRIVATE ${LCU_HOST_SOURCES})
@@ -95,6 +102,7 @@ if(NOT LCU_PLATFORM STREQUAL "switch")
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${CMAKE_CURRENT_SOURCE_DIR}/web/index.html
                 ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.js
+                ${CMAKE_CURRENT_SOURCE_DIR}/web/archive.js
                 ${CMAKE_CURRENT_SOURCE_DIR}/web/loader.js
                 ${CMAKE_CURRENT_SOURCE_DIR}/web/play.html
                 ${CMAKE_CURRENT_SOURCE_DIR}/web/serve.py

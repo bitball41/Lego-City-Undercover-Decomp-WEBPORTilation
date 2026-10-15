@@ -1,5 +1,9 @@
 #include "assets.h"
 
+#include "tt_read.h"
+
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -12,19 +16,20 @@ namespace {
 
 std::vector<HostMesh> g_meshes;
 std::vector<std::string> g_pending;
+char g_note[64] = {};
+
+void SetNote(const char* text) {
+    if (text == nullptr) {
+        g_note[0] = 0;
+        return;
+    }
+    std::snprintf(g_note, sizeof(g_note), "%s", text);
+}
 
 bool NameOk(const std::string& name) {
-    auto dot = name.find_last_of('.');
-    if (dot == std::string::npos) {
-        return false;
-    }
-    std::string ext = name.substr(dot);
-    for (char& c : ext) {
-        if (c >= 'A' && c <= 'Z') {
-            c = static_cast<char>(c - 'A' + 'a');
-        }
-    }
-    return ext == ".obj" || ext == ".ghg" || ext == ".gsc";
+    const char* ext = TtExtension(name);
+    return std::strcmp(ext, ".obj") == 0 || std::strcmp(ext, ".ghg") == 0 || std::strcmp(ext, ".gsc") == 0
+           || std::strcmp(ext, ".dat") == 0 || std::strcmp(ext, ".pak") == 0;
 }
 
 void Bounds(HostMesh& mesh) {
@@ -118,85 +123,88 @@ bool ParseObj(const char* text, int length, HostMesh& mesh) {
     return mesh.indices.size() >= 3;
 }
 
-uint32_t ReadU32(const uint8_t* p) {
-    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) | (static_cast<uint32_t>(p[2]) << 16)
-           | (static_cast<uint32_t>(p[3]) << 24);
-}
-
-bool TagEq(const uint8_t* p, char a, char b, char c, char d) {
-    return p[0] == static_cast<uint8_t>(a) && p[1] == static_cast<uint8_t>(b) && p[2] == static_cast<uint8_t>(c)
-           && p[3] == static_cast<uint8_t>(d);
-}
-
-bool ParseMeshPayload(const uint8_t* data, int length, HostMesh& mesh) {
-    if (length < 12) {
-        return false;
-    }
-    uint32_t version = ReadU32(data);
-    uint32_t verts = ReadU32(data + 4);
-    uint32_t indices = ReadU32(data + 8);
-    if (version != 1 || verts == 0 || verts > 200000 || indices < 3 || indices > 600000) {
-        return false;
-    }
-    size_t need = 12u + static_cast<size_t>(verts) * 12u + static_cast<size_t>(indices) * 4u;
-    if (need > static_cast<size_t>(length)) {
-        return false;
-    }
-    const uint8_t* vptr = data + 12;
-    mesh.xyz.resize(static_cast<size_t>(verts) * 3);
-    for (uint32_t i = 0; i < verts * 3; ++i) {
-        float value = 0.f;
-        std::memcpy(&value, vptr + i * 4, 4);
-        mesh.xyz[i] = value;
-    }
-    const uint8_t* iptr = vptr + verts * 12;
-    mesh.indices.resize(indices);
-    for (uint32_t i = 0; i < indices; ++i) {
-        mesh.indices[i] = ReadU32(iptr + i * 4);
-        if (mesh.indices[i] >= verts) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool ParseGhg(const uint8_t* data, int length, HostMesh& mesh) {
-    for (int i = 0; i + 16 < length; ++i) {
-        bool meshTag = TagEq(data + i, 'H', 'S', 'E', 'M') || TagEq(data + i, 'M', 'E', 'S', 'H');
-        if (!meshTag) {
-            continue;
-        }
-        if (ParseMeshPayload(data + i + 8, length - (i + 8), mesh)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Ingest(const std::string& name, const uint8_t* data, int size) {
+bool IngestMesh(const std::string& name, const uint8_t* data, int size) {
     if (data == nullptr || size <= 0 || size > 48 * 1024 * 1024) {
         return false;
     }
     HostMesh mesh;
     mesh.name = name;
+    char note[64];
+    note[0] = 0;
     bool ok = false;
-    std::string lower = name;
-    for (char& c : lower) {
-        if (c >= 'A' && c <= 'Z') {
-            c = static_cast<char>(c - 'A' + 'a');
-        }
-    }
-    if (lower.size() >= 4 && lower.substr(lower.size() - 4) == ".obj") {
+    const char* ext = TtExtension(name);
+    if (std::strcmp(ext, ".obj") == 0) {
         ok = ParseObj(reinterpret_cast<const char*>(data), size, mesh);
     } else {
-        ok = ParseGhg(data, size, mesh);
+        ok = TtReadNu20(data, size, mesh, note, static_cast<int>(sizeof(note)));
+        if (!ok && note[0] != 0) {
+            SetNote(note);
+        }
     }
-    if (!ok) {
+    if (!ok || mesh.indices.size() < 3) {
         return false;
     }
     Bounds(mesh);
     g_meshes.push_back(std::move(mesh));
     return true;
+}
+
+bool IngestArchive(const uint8_t* data, int size) {
+    if (data == nullptr || size <= 0 || size > 256 * 1024 * 1024) {
+        return false;
+    }
+    TtArchive archive;
+    if (!TtOpenArchive(data, size, archive)) {
+        if (!archive.kind.empty()) {
+            SetNote(archive.kind.c_str());
+        }
+        return false;
+    }
+    int got = 0;
+    int seen = 0;
+    for (const TtFile& file : archive.files) {
+        const char* ext = TtExtension(file.name);
+        if (std::strcmp(ext, ".obj") != 0 && std::strcmp(ext, ".ghg") != 0 && std::strcmp(ext, ".gsc") != 0) {
+            continue;
+        }
+        if (++seen > 80) {
+            break;
+        }
+        std::vector<uint8_t> bytes;
+        if (!TtExtract(data, size, file, bytes)) {
+            continue;
+        }
+        if (IngestMesh(file.name, bytes.data(), static_cast<int>(bytes.size()))) {
+            ++got;
+        }
+    }
+    if (got == 0) {
+        char note[64];
+        std::snprintf(note, sizeof(note), "%s %d FILES", archive.kind.c_str(), static_cast<int>(archive.files.size()));
+        SetNote(note);
+        return false;
+    }
+    return true;
+}
+
+bool Ingest(const std::string& name, const uint8_t* data, int size) {
+    const char* ext = TtExtension(name);
+    if (std::strcmp(ext, ".obj") == 0) {
+        return IngestMesh(name, data, size);
+    }
+    if (std::strcmp(ext, ".dat") == 0 || std::strcmp(ext, ".pak") == 0) {
+        return IngestArchive(data, size);
+    }
+    if (std::strcmp(ext, ".ghg") == 0 || std::strcmp(ext, ".gsc") == 0) {
+        if (IngestMesh(name, data, size)) {
+            return true;
+        }
+        return IngestArchive(data, size);
+    }
+    if (IngestMesh(name, data, size)) {
+        return true;
+    }
+    return IngestArchive(data, size);
 }
 
 }  // namespace
@@ -226,6 +234,7 @@ int AssetsSubmit(const char* name, const uint8_t* data, int size) {
 void AssetsClear() {
     g_meshes.clear();
     g_pending.clear();
+    g_note[0] = 0;
 }
 
 void AssetsPump() {
@@ -262,4 +271,8 @@ const HostMesh* AssetsAt(int index) {
         return nullptr;
     }
     return &g_meshes[static_cast<size_t>(index)];
+}
+
+const char* AssetsStatus() {
+    return g_note;
 }

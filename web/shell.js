@@ -106,33 +106,78 @@
         return;
       }
       const text = module.UTF8ToString(module._host_get_status());
-      statusEl.textContent = text + "  studs " + module._host_stud_count();
+      statusEl.textContent = text + "  models " + module._host_stud_count();
       if (smoke) {
         smokeFrames += 1;
         if (smokeFrames > 20) {
-          document.title = text.indexOf("STUDS") >= 0 ? "LCU_OK" : "LCU_FAIL";
+          document.title = text.indexOf("DROP") >= 0 || text.indexOf("MESH") >= 0 ? "LCU_OK" : "LCU_FAIL";
           return;
         }
       }
       requestAnimationFrame(frame);
     }
 
+    function submitBytes(name, bytes) {
+      const nameLen = module.lengthBytesUTF8(name) + 1;
+      const np = module._malloc(nameLen);
+      const bp = module._malloc(bytes.length);
+      module.stringToUTF8(name, np, nameLen);
+      module.HEAPU8.set(bytes, bp);
+      const accepted = module._host_submit_asset(np, bp, bytes.length);
+      module._free(np);
+      module._free(bp);
+      return accepted;
+    }
+
     async function streamFiles(fileList) {
-      let ok = 0;
+      const queued = [];
       for (const file of fileList) {
-        if (!/\.(obj|ghg|gsc)$/i.test(file.name)) continue;
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const nameLen = module.lengthBytesUTF8(file.name) + 1;
-        const np = module._malloc(nameLen);
-        const bp = module._malloc(bytes.length);
-        module.stringToUTF8(file.name, np, nameLen);
-        module.HEAPU8.set(bytes, bp);
-        ok += module._host_submit_asset(np, bp, bytes.length);
-        module._free(np);
-        module._free(bp);
-        note("asset " + file.name + " " + bytes.length + "B accepted " + ok);
+        if (/\.(obj|ghg|gsc)$/i.test(file.name)) {
+          queued.push({ file: file, name: file.name });
+          continue;
+        }
+        if (!/\.(dat|pak)$/i.test(file.name)) continue;
+        if (file.size <= 48 * 1024 * 1024) {
+          queued.push({ file: file, name: file.name, whole: true });
+          continue;
+        }
+        let listing = null;
+        try {
+          listing = await LcuArchive.listFile(file);
+        } catch (err) {
+          note("archive failed " + file.name + " " + err);
+          continue;
+        }
+        const models = LcuArchive.models(listing);
+        note("archive " + file.name + " " + (listing && listing.kind ? listing.kind : "unknown") + " models " + models.length);
+        models.sort(function (a, b) {
+          const ag = /\.gsc$/i.test(a.name) ? 0 : 1;
+          const bg = /\.gsc$/i.test(b.name) ? 0 : 1;
+          return ag - bg;
+        });
+        for (const entry of models) {
+          queued.push({ file: file, name: entry.name, offset: entry.offset, length: entry.length });
+        }
+      }
+      let ok = 0;
+      const cap = Math.min(queued.length, 80);
+      for (let i = 0; i < cap; i++) {
+        const item = queued[i];
+        let bytes;
+        if (item.offset != null) {
+          bytes = new Uint8Array(await item.file.slice(item.offset, item.offset + item.length).arrayBuffer());
+        } else {
+          bytes = new Uint8Array(await item.file.arrayBuffer());
+        }
+        if (!bytes.length || bytes.length > 48 * 1024 * 1024) {
+          note("skip " + item.name + " " + bytes.length + "B");
+          continue;
+        }
+        ok += submitBytes(item.name, bytes);
+        note("asset " + item.name + " " + bytes.length + "B accepted " + ok);
         await new Promise((resolve) => requestAnimationFrame(resolve));
       }
+      if (queued.length > cap) note("stopped after " + cap + " of " + queued.length);
       note("assets finished accepted " + ok);
     }
 

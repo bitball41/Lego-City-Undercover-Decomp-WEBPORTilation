@@ -19,3 +19,4 @@ void AssetsPump();
 int AssetsPending();
 int AssetsLoaded();
 const HostMesh* AssetsAt(int index);
+const char* AssetsStatus();

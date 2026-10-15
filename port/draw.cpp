@@ -281,7 +281,12 @@ void DrawMesh(const float* xyz, int vertexCount, const unsigned* indices, int in
         out.y = y + pos.y;
         out.z = -x * sn + z * cs + pos.z;
     };
-    for (int i = 0; i + 2 < indexCount; i += 3) {
+    int stride = 3;
+    int tris = indexCount / 3;
+    if (tris > 2500) {
+        stride = (tris / 2500) * 3;
+    }
+    for (int i = 0; i + 2 < indexCount; i += stride) {
         NUVEC va, vb, vc;
         world(indices[i], va);
         world(indices[i + 1], vb);

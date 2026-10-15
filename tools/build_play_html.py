@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOADER = (ROOT / "web" / "loader.js").read_text()
+ARCHIVE = (ROOT / "web" / "archive.js").read_text()
 SHELL = (ROOT / "web" / "shell.js").read_text()
 
 PAGE = """<!DOCTYPE html>
@@ -64,13 +65,13 @@ PAGE = """<!DOCTYPE html>
 <body>
 <main>
   <h1>LEGO CITY UNDERCOVER</h1>
-  <p>Save this file and open it. It is the whole loader. The runtime and wasm are fetched from the GitHub API in chunks. WASD moves, Shift sprints, Space jumps, mouse looks, Enter pauses. Drop your own <code>.ghg</code>, <code>.gsc</code>, or <code>.obj</code> files.</p>
+  <p>Save this file and open it. The runtime and wasm are fetched from the GitHub API in chunks. WASD moves, Shift sprints, Space jumps, mouse looks, Enter pauses. Open a folder from a game you own (<code>.dat</code>, <code>.pak</code>, <code>.ghg</code>, <code>.gsc</code>). This file does not contain the campaign or any game assets. The decomp still has to grow into the real city, missions, and characters.</p>
   <div id="loadbar"><div id="loadfill"></div></div>
   <div id="loadlabel">starting</div>
   <canvas id="screen" width="480" height="270"></canvas>
   <div class="row">
-    <label class="file">Stream a folder<input id="folder" type="file" webkitdirectory multiple hidden /></label>
-    <button id="clear" type="button">Clear props</button>
+    <label class="file">Open dump folder<input id="folder" type="file" webkitdirectory multiple hidden /></label>
+    <button id="clear" type="button">Clear meshes</button>
     <button id="copylog" type="button">Copy log</button>
     <span id="status">loading</span>
   </div>
@@ -78,6 +79,9 @@ PAGE = """<!DOCTYPE html>
 </main>
 <script>
 __LOADER__
+</script>
+<script>
+__ARCHIVE__
 </script>
 <script>
 __SHELL__
@@ -116,7 +120,7 @@ def guard(source, name):
         raise SystemExit(name + " contains a script end tag")
     return source.rstrip() + "\n"
 
-html = PAGE.replace("__LOADER__", guard(LOADER, "loader.js")).replace("__SHELL__", guard(SHELL, "shell.js"))
+html = PAGE.replace("__LOADER__", guard(LOADER, "loader.js")).replace("__ARCHIVE__", guard(ARCHIVE, "archive.js")).replace("__SHELL__", guard(SHELL, "shell.js"))
 out = ROOT / "web" / "play.html"
 out.write_text(html)
 print(f"wrote {out} ({out.stat().st_size} bytes)")

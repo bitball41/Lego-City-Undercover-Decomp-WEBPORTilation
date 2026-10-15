@@ -64,6 +64,7 @@ struct GameState {
     float time;
     int collected;
     bool wonTune;
+    int seenMeshes;
     char status[192];
 
     GameState() : pad(0) {}
@@ -102,30 +103,9 @@ void DefaultOptions(GameState& game) {
 
 void BuildCity(GameState& game) {
     game.solids.clear();
-    auto add = [&](float x0, float y0, float z0, float x1, float y1, float z1, int r, int g, int b) {
-        if (x0 > x1) std::swap(x0, x1);
-        if (y0 > y1) std::swap(y0, y1);
-        if (z0 > z1) std::swap(z0, z1);
-        game.solids.push_back({x0, y0, z0, x1, y1, z1, r, g, b});
-    };
-    add(-18, 0, -18, -8, 7, -8, 40, 90, 170);
-    add(8, 0, -18, 18, 9, -6, 180, 50, 40);
-    add(-18, 0, 10, -7, 5, 18, 50, 140, 70);
-    add(9, 0, 8, 18, 6, 18, 90, 90, 110);
-    add(-4, 0, -6, 4, 1.15f, -2, 200, 170, 40);
-    add(-2, 0, 14, 2, 0.35f, 18, 160, 160, 170);
-    add(2, 0, 14, 6, 0.7f, 18, 150, 150, 165);
-    add(6, 0, 14, 10, 1.05f, 18, 140, 140, 160);
     for (int i = 0; i < kStudCount; ++i) {
-        float angle = static_cast<float>(i) * 0.55f;
-        game.studs[i].x = std::sin(angle) * (3.f + i * 0.35f);
-        game.studs[i].z = 4.f + i * 0.8f;
-        game.studs[i].y = 0.35f;
-        game.studs[i].got = false;
+        game.studs[i].got = true;
     }
-    game.studs[0].x = 2.f;
-    game.studs[0].z = 2.f;
-    game.studs[0].y = 0.4f;
 }
 
 void Resolve(GameState& game, const Solid& box) {
@@ -250,28 +230,7 @@ void Simulate(GameState& game, float dt) {
     for (const Solid& solid : game.solids) {
         Resolve(game, solid);
     }
-
-    for (int i = 0; i < kStudCount; ++i) {
-        Stud& stud = game.studs[i];
-        if (stud.got) {
-            continue;
-        }
-        float dx = game.x - stud.x;
-        float dz = game.z - stud.z;
-        if (dx * dx + dz * dz < 0.7f * 0.7f && std::fabs(game.y - stud.y) < 1.4f) {
-            stud.got = true;
-            ++game.collected;
-            HostAudioPlay(880.f, 0.09f, false);
-            game.pad.SetMotors(0.4f, 0.2f);
-            SaveGame(game);
-        }
-    }
-    if (game.collected == kStudCount && !game.wonTune) {
-        game.wonTune = true;
-        HostAudioPlay(523.f, 0.2f, true);
-        HostAudioPlay(659.f, 0.25f, true);
-        HostAudioPlay(784.f, 0.4f, true);
-    }
+    game.collected = AssetsLoaded();
 }
 
 void Menu(GameState& game, unsigned buttons) {
@@ -346,45 +305,42 @@ void Render(GameState& game) {
         NUVEC mx{solid.x1, solid.y1, solid.z1};
         DrawBox(mn, mx, solid.r, solid.g, solid.b);
     }
+    const int palette[6][3] = {{210, 180, 40}, {40, 90, 180}, {180, 40, 40}, {40, 140, 70}, {150, 150, 160}, {90, 50, 30}};
     for (int i = 0; i < AssetsLoaded(); ++i) {
         const HostMesh* mesh = AssetsAt(i);
         if (mesh == nullptr || mesh->xyz.empty()) {
             continue;
         }
         float extent = std::max(mesh->maxX - mesh->minX, std::max(mesh->maxY - mesh->minY, mesh->maxZ - mesh->minZ));
-        float scale = extent > 0.001f ? 2.2f / extent : 1.f;
-        NUVEC pos{-14.f + static_cast<float>(i % 5) * 3.2f, -mesh->minY * scale, -16.f};
+        bool world = extent > 30.f;
+        float scale = world ? 1.f : (extent > 0.001f ? 6.f / extent : 1.f);
+        int column = i % 8;
+        int row = i / 8;
+        NUVEC pos = world ? NUVEC{0.f, 0.f, 0.f}
+                          : NUVEC{static_cast<float>(column - 3) * 10.f, -mesh->minY * scale,
+                                  14.f + static_cast<float>(row) * 10.f};
+        const int* color = palette[i % 6];
         DrawMesh(mesh->xyz.data(), static_cast<int>(mesh->xyz.size() / 3), mesh->indices.data(),
-                 static_cast<int>(mesh->indices.size()), pos, 0.4f * i, scale, 220, 200, 80);
+                 static_cast<int>(mesh->indices.size()), pos, 0.f, scale, color[0], color[1], color[2]);
     }
-    for (int i = 0; i < kStudCount; ++i) {
-        const Stud& stud = game.studs[i];
-        if (stud.got) {
-            continue;
-        }
-        float bob = std::sin(game.time * 4.f + i) * 0.08f;
-        NUVEC mn{stud.x - 0.18f, stud.y + bob, stud.z - 0.18f};
-        NUVEC mx{stud.x + 0.18f, stud.y + bob + 0.28f, stud.z + 0.18f};
-        DrawBox(mn, mx, 240, 210, 20);
-    }
-    NUVEC feet{game.x, game.y, game.z};
-    DrawBox({feet.x - 0.22f, feet.y, feet.z - 0.16f}, {feet.x + 0.22f, feet.y + 0.45f, feet.z + 0.16f}, 30, 70, 170);
-    DrawBox({feet.x - 0.28f, feet.y + 0.45f, feet.z - 0.18f}, {feet.x + 0.28f, feet.y + 1.05f, feet.z + 0.18f}, 200, 40,
-            40);
-    DrawBox({feet.x - 0.16f, feet.y + 1.05f, feet.z - 0.16f}, {feet.x + 0.16f, feet.y + 1.42f, feet.z + 0.16f}, 240, 200,
-            40);
 
     float zone = game.options.options.GetSafeZone();
     int insetX = static_cast<int>((1.f - zone) * kWidth * 0.5f);
     int insetY = static_cast<int>((1.f - zone) * kFbH * 0.5f);
-    std::snprintf(game.status, sizeof(game.status), "STUDS %02d/%02d", game.collected, kStudCount);
-    DrawText(16 + insetX, 16 + insetY, game.status, 255, 230, 40);
-    if (game.collected == kStudCount) {
-        DrawText(150, 120, "CITY CLEAR", 255, 255, 255);
+    if (AssetsLoaded() == 0) {
+        const char* note = AssetsStatus();
+        if (note != nullptr && note[0] != 0) {
+            std::snprintf(game.status, sizeof(game.status), "%s", note);
+        } else {
+            std::snprintf(game.status, sizeof(game.status), "DROP GAME DUMP");
+        }
+    } else {
+        std::snprintf(game.status, sizeof(game.status), "MESHES %d", AssetsLoaded());
     }
+    DrawText(16 + insetX, 16 + insetY, game.status, 255, 230, 40);
     if (AssetsLoaded() > 0 || AssetsPending() > 0) {
         char assets[64];
-        std::snprintf(assets, sizeof(assets), "ASSETS %d  QUEUED %d", AssetsLoaded(), AssetsPending());
+        std::snprintf(assets, sizeof(assets), "LOADED %d  WAIT %d", AssetsLoaded(), AssetsPending());
         DrawText(16 + insetX, 40 + insetY, assets, 220, 240, 255);
     }
     if (game.paused) {
@@ -434,11 +390,11 @@ void GameBoot() {
     game.time = 0.f;
     game.collected = 0;
     game.wonTune = false;
+    game.seenMeshes = 0;
     LoadGame(game);
     game.booted = true;
     game.pad.Update(0.f, false);
     Render(game);
-    std::snprintf(game.status, sizeof(game.status), "STUDS %02d/%02d", game.collected, kStudCount);
 }
 
 void GameFrame(float dt) {
@@ -453,6 +409,29 @@ void GameFrame(float dt) {
         dt = 0.05f;
     }
     AssetsPump();
+    if (AssetsLoaded() > game.seenMeshes) {
+        const HostMesh* best = nullptr;
+        float bestSpan = 0.f;
+        for (int i = 0; i < AssetsLoaded(); ++i) {
+            const HostMesh* mesh = AssetsAt(i);
+            if (mesh == nullptr) {
+                continue;
+            }
+            float span = std::max(mesh->maxX - mesh->minX, std::max(mesh->maxY - mesh->minY, mesh->maxZ - mesh->minZ));
+            if (span > bestSpan) {
+                bestSpan = span;
+                best = mesh;
+            }
+        }
+        if (best != nullptr && bestSpan > 20.f) {
+            game.x = (best->minX + best->maxX) * 0.5f;
+            game.z = (best->minZ + best->maxZ) * 0.5f - 8.f;
+            game.y = best->minY > 0.f ? best->minY : 0.f;
+            game.vy = 0.f;
+            game.yaw = 0.f;
+        }
+        game.seenMeshes = AssetsLoaded();
+    }
     game.time += dt;
     game.pad.Update(dt, false);
     unsigned buttons = game.pad.GetButtons();
@@ -471,12 +450,13 @@ void GameFrame(float dt) {
     }
     Render(game);
     HostAudioRender(dt);
-    std::snprintf(game.status, sizeof(game.status), "STUDS %02d/%02d%s", game.collected, kStudCount,
-                  game.paused ? " PAUSED" : "");
+    if (game.paused) {
+        std::snprintf(game.status + std::strlen(game.status), sizeof(game.status) - std::strlen(game.status), " PAUSED");
+    }
 }
 
 int GameStuds() {
-    return State().collected;
+    return AssetsLoaded();
 }
 int GameStudTotal() {
     return kStudCount;
